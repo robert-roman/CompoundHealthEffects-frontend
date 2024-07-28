@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">CompoundHealthEffects</string>
+    <string name="no_request_send_yet">No request send yet</string>
+    <string name="choose_image">Choose image</string>
+    <string name="get_compounds_information">Get compounds information</string>
+    <string name="selected_image">Selected image</string>
+</resources>

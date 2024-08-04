@@ -26,14 +26,22 @@
         app:layout_constraintTop_toBottomOf="@id/textView"
         app:layout_constraintBottom_toTopOf="@id/selectedImage"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
+        app:layout_constraintEnd_toEndOf="parent"
+        android:contentDescription="Scrollable table containing fetched compounds information">
 
-        <TableLayout
-            android:id="@+id/responseTableLayout"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:stretchColumns="1" />
+            android:orientation="vertical">
+
+            <TableLayout
+                android:id="@+id/responseTableLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:stretchColumns="1" />
+        </LinearLayout>
     </ScrollView>
+
 
     <ImageView
         android:id="@+id/selectedImage"

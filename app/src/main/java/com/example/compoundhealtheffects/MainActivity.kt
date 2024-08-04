@@ -4,11 +4,9 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
+import android.view.LayoutInflater
 import android.view.View
-import android.widget.ImageView
-import android.widget.TableLayout
-import android.widget.TableRow
-import android.widget.TextView
+import android.widget.*
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -24,10 +22,7 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
-import okhttp3.Call
-import okhttp3.Callback
 import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.Response
 import java.io.File
 import java.io.IOException
 
@@ -82,28 +77,20 @@ class MainActivity : AppCompatActivity() {
                 .post(requestBody)
                 .build()
 
-            httpClient.newCall(request).enqueue(object : Callback {
-                override fun onFailure(call: Call, e: IOException) {
+            httpClient.newCall(request).enqueue(object : okhttp3.Callback {
+                override fun onFailure(call: okhttp3.Call, e: IOException) {
                     e.printStackTrace()
                     runOnUiThread {
                         displayTextView.text = "Failed to fetch compounds health effects: ${e.message}, ${e.cause}"
                     }
                 }
 
-                override fun onResponse(call: Call, response: Response) {
+                override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
                     if (response.isSuccessful) {
                         val responseBody = response.body?.string() ?: "No response"
                         runOnUiThread {
                             val decodedResponse =
                                 jsonIgnoreUnknown.decodeFromString(responseSerializer, responseBody)
-                            val formattedResponse =
-                                decodedResponse
-                                    .map{ e ->
-                                        "Compound ${e.value.compound.name} has " +
-                                            "${e.value.healthEffects.size} health effects."
-                                    }
-                                    .toString()
-                            displayTextView.text = formattedResponse
                             renderResponseAsTable(decodedResponse)
                         }
                     } else {
@@ -133,28 +120,28 @@ class MainActivity : AppCompatActivity() {
         responseTableLayout.removeAllViews() // Clear previous rows if any
 
         for (entry in decodedResponse) {
-            val rowToAdd = TableRow(applicationContext)
-            rowToAdd.setBackgroundColor(Color.LTGRAY)
+            val inflater = LayoutInflater.from(this)
+            val rowView = inflater.inflate(R.layout.expandable_row, responseTableLayout, false)
 
-            val nameTextViewForRow = TextView(applicationContext).apply {
-                text = entry.value.compound.name
-                setTextColor(Color.rgb(130, 175, 200))
-                setPadding(8, 8, 8, 8)
-                layoutParams = TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 1f)
+            val mainRow = rowView.findViewById<TableRow>(R.id.mainRow)
+            val nameTextViewForRow = rowView.findViewById<TextView>(R.id.nameTextViewForRow)
+            val descriptionTextViewForRow = rowView.findViewById<TextView>(R.id.descriptionTextViewForRow)
+            val dropdownContent = rowView.findViewById<LinearLayout>(R.id.dropdownContent)
+            val extraInfo = rowView.findViewById<TextView>(R.id.extraInfo)
+
+            nameTextViewForRow.text = entry.value.compound.name
+            descriptionTextViewForRow.text = entry.value.compound.description
+            extraInfo.text = "Health Effects: \n" + entry.value.healthEffects.values.joinToString("\n") { it.description ?: "No description available" }
+
+            mainRow.setOnClickListener {
+                if (dropdownContent.visibility == View.GONE) {
+                    dropdownContent.visibility = View.VISIBLE
+                } else {
+                    dropdownContent.visibility = View.GONE
+                }
             }
 
-            val descriptionTextViewForRow = TextView(applicationContext).apply {
-                text = entry.value.compound.description
-                setPadding(8, 8, 8, 8)
-                layoutParams = TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 2f)
-                setSingleLine(false)
-//                maxLines = 3
-                ellipsize = null // Set ellipsize to null to wrap text instead of showing ellipsis
-            }
-
-            rowToAdd.addView(nameTextViewForRow)
-            rowToAdd.addView(descriptionTextViewForRow)
-            responseTableLayout.addView(rowToAdd)
+            responseTableLayout.addView(rowView)
         }
     }
 }

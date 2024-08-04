@@ -30,6 +30,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.io.File
 import java.io.IOException
+import android.util.Log
 
 class MainActivity : AppCompatActivity() {
     private var selectedImageUri: Uri? = null
@@ -58,7 +59,7 @@ class MainActivity : AppCompatActivity() {
         selectImageResultLauncher.launch(request)
     }
 
-    private val fetchCompoundsHEUrl = "http://10.0.2.2:5000/upload" // Update URL if necessary
+    private val fetchCompoundsHEUrl = "http://10.0.2.2:5000/upload"
 
     private val jsonIgnoreUnknown = Json { ignoreUnknownKeys = true }
     private val responseSerializer =
@@ -134,65 +135,127 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderResponseAsTable(decodedResponse: Map<String, CompoundHealthEffect>) {
         val responseTableLayout = findViewById<TableLayout>(R.id.responseTableLayout)
-        responseTableLayout.removeAllViews() // Clear previous rows if any
+        responseTableLayout.removeAllViews()
+
+        // Map to keep track of effect details layouts by their unique IDs
+        val effectDetailsLayouts = mutableMapOf<String, LinearLayout>()
 
         for (entry in decodedResponse) {
             val compound = entry.value.compound
             val healthEffects = entry.value.healthEffects
 
-            // Create the main row
-            val mainRow = TableRow(applicationContext).apply {
-                setBackgroundColor(Color.LTGRAY)
-                layoutParams = TableLayout.LayoutParams(
-                    TableLayout.LayoutParams.MATCH_PARENT,
-                    TableLayout.LayoutParams.WRAP_CONTENT
-                )
-            }
+            val mainRow = createMainRow(compound)
+            responseTableLayout.addView(mainRow)
 
-            // Create TextViews for compound name and description
-            val nameTextView = TextView(applicationContext).apply {
-                text = compound.name
-                setTextColor(Color.rgb(130, 175, 200))
-                setPadding(8, 8, 8, 8)
-                layoutParams = TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 1f)
-            }
+            val dropdownContent = createDropdownContent(healthEffects, effectDetailsLayouts)
+            responseTableLayout.addView(dropdownContent)
 
-            val descriptionTextView = TextView(applicationContext).apply {
-                text = compound.description
-                setPadding(8, 8, 8, 8)
-                layoutParams = TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 2f)
-                setSingleLine(false)
-                ellipsize = null
-            }
-
-            mainRow.addView(nameTextView)
-            mainRow.addView(descriptionTextView)
-
-            // Create the dropdown content for health effects
-            val dropdownContent = LinearLayout(applicationContext).apply {
-                orientation = LinearLayout.VERTICAL
-                visibility = View.GONE
-                setBackgroundColor(Color.parseColor("#E0E0E0"))
-                setPadding(8, 8, 8, 8)
-            }
-
-            val extraInfo = TextView(applicationContext).apply {
-                text = "Health Effects: \n" + healthEffects.values.joinToString("\n")
-                    { it.description ?: "No description available" }
-                setPadding(8, 8, 8, 8)
-                setTextColor(Color.BLACK)
-            }
-
-            dropdownContent.addView(extraInfo)
-
-            // Add onClick listener to toggle visibility of dropdown content
             mainRow.setOnClickListener {
                 dropdownContent.visibility = if (dropdownContent.visibility == View.GONE)
                     View.VISIBLE else View.GONE
             }
-
-            responseTableLayout.addView(mainRow)
-            responseTableLayout.addView(dropdownContent)
         }
     }
+
+    private fun createMainRow(compound: Compound): TableRow {
+        return TableRow(this).apply {
+            setBackgroundColor(Color.LTGRAY)
+            layoutParams = TableLayout.LayoutParams(
+                TableLayout.LayoutParams.MATCH_PARENT,
+                TableLayout.LayoutParams.WRAP_CONTENT
+            )
+
+            // Create and add TextViews for compound name and description
+            val nameTextView = TextView(this@MainActivity).apply {
+                text = compound.name
+                setTextColor(Color.rgb(130, 175, 200))
+                setPadding(8, 8, 8, 8)
+                layoutParams = TableRow.LayoutParams(0,
+                    TableRow.LayoutParams.WRAP_CONTENT, 1f)
+            }
+
+            val descriptionTextView = TextView(this@MainActivity).apply {
+                text = compound.description
+                setPadding(8, 8, 8, 8)
+                layoutParams = TableRow.LayoutParams(0,
+                    TableRow.LayoutParams.WRAP_CONTENT, 2f)
+                setSingleLine(false)
+                ellipsize = null
+            }
+
+            addView(nameTextView)
+            addView(descriptionTextView)
+        }
+    }
+
+    private fun createDropdownContent(
+        healthEffects: Map<String, HealthEffect>,
+        effectDetailsLayouts: MutableMap<String, LinearLayout>
+    ): LinearLayout {
+        val dropdownContent = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+            setBackgroundColor(Color.parseColor("#E0E0E0"))
+            setPadding(8, 8, 8, 8)
+        }
+
+        val relatedHealthEffectsTextView = TextView(this).apply {
+            text = "Related health effects: ${healthEffects.size}"
+            setPadding(8, 8, 8, 8)
+            setTextColor(Color.BLACK)
+        }
+
+        dropdownContent.addView(relatedHealthEffectsTextView)
+
+        val healthEffectsContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+
+        healthEffects.forEach { (effectId, effectInfo) ->
+            val effectHeader = TextView(this).apply {
+                text = effectInfo.name
+                setPadding(8, 8, 8, 8)
+                setTextColor(Color.rgb(130, 175, 200))
+
+                val effectDetailsLayout = createEffectDetailsLayout(effectInfo).apply {
+                    tag = effectId
+                }
+                effectDetailsLayouts[effectId] = effectDetailsLayout
+
+                setOnClickListener {
+                    val layout = effectDetailsLayouts[effectId]
+                    layout?.visibility = if (layout?.visibility == View.GONE)
+                        View.VISIBLE else View.GONE
+                }
+            }
+
+            val effectDetailsLayout = effectDetailsLayouts[effectId]
+
+            healthEffectsContainer.addView(effectHeader)
+            effectDetailsLayout?.let { healthEffectsContainer.addView(it) }
+        }
+
+        dropdownContent.addView(healthEffectsContainer)
+
+        return dropdownContent
+    }
+
+    private fun createEffectDetailsLayout(effectInfo: HealthEffect): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(8, 8, 8, 8)
+            setBackgroundColor(Color.GREEN)
+            visibility = View.GONE
+
+            val effectTitle = TextView(this@MainActivity).apply {
+                text = "${effectInfo.name}: ${effectInfo.description ?: "No description available"}"
+                setPadding(8, 8, 8, 8)
+                setTextColor(Color.BLACK)
+            }
+
+            addView(effectTitle)
+        }
+    }
+
+
 }
